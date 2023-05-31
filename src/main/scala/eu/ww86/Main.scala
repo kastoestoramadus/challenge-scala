@@ -13,9 +13,9 @@ object Main extends IOApp:
     val serverOptions: Http4sServerOptions[IO] =
       Http4sServerOptions
         .customiseInterceptors[IO]
-        .metricsInterceptor(Endpoints.prometheusMetrics.metricsInterceptor())
+        .metricsInterceptor(ServerEndpoints.prometheusMetrics.metricsInterceptor())
         .options
-    val routes = Http4sServerInterpreter[IO](serverOptions).toRoutes(Endpoints.all)
+    val routes = Http4sServerInterpreter[IO](serverOptions).toRoutes(ServerEndpoints.all)
 
     val port = sys.env
       .get("HTTP_PORT")

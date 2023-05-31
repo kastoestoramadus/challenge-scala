@@ -13,9 +13,11 @@ lazy val rootProject = (project in file(".")).settings(
       "com.softwaremill.sttp.tapir" %% "tapir-swagger-ui-bundle" % tapirVersion,
       "com.softwaremill.sttp.tapir" %% "tapir-json-circe" % tapirVersion,
       "ch.qos.logback" % "logback-classic" % "1.4.7",
+      "org.typelevel" %% "cats-time"     % "0.5.1",
       "com.softwaremill.sttp.tapir" %% "tapir-sttp-stub-server" % tapirVersion % Test,
       "org.scalatest" %% "scalatest" % "3.2.16" % Test,
-      "com.softwaremill.sttp.client3" %% "circe" % "3.8.15" % Test
+      "com.softwaremill.sttp.client3" %% "circe" % "3.8.15" % Test,
+      "org.typelevel" %% "cats-effect-testing-scalatest" % "1.5.0" % Test,
     )
   )
 )
