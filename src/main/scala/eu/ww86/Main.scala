@@ -2,6 +2,8 @@ package eu.ww86
 
 import cats.effect.{ExitCode, IO, IOApp}
 import com.comcast.ip4s.{Host, Port, port}
+import eu.ww86.domain.InMemoryTransformationsState
+import eu.ww86.myio.InMemoryFiles
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import sttp.tapir.server.http4s.{Http4sServerInterpreter, Http4sServerOptions}
@@ -10,12 +12,17 @@ object Main extends IOApp:
 
   override def run(args: List[String]): IO[ExitCode] =
 
+    val serverEndpoints = new ServerEndpoints(new TransformingService[IO](
+      new InMemoryFiles[IO],
+      new InMemoryTransformationsState
+    ))
+
     val serverOptions: Http4sServerOptions[IO] =
       Http4sServerOptions
         .customiseInterceptors[IO]
-        .metricsInterceptor(ServerEndpoints.prometheusMetrics.metricsInterceptor())
+        .metricsInterceptor(serverEndpoints.prometheusMetrics.metricsInterceptor())
         .options
-    val routes = Http4sServerInterpreter[IO](serverOptions).toRoutes(ServerEndpoints.all)
+    val routes = Http4sServerInterpreter[IO](serverOptions).toRoutes(serverEndpoints.all)
 
     val port = sys.env
       .get("HTTP_PORT")

@@ -6,7 +6,7 @@ case class TransformTaskDetails(
                                  requestedCsv: URI,
                                  processingDetails: Option[ProcessingDetails],
                                  state: TransformTaskStatus,
-                                 outputJson: Option[URI]
+                                 resultsFileName: Option[String] // could be URL instead of fileName
                                )
 
-case class ProcessingDetails(startedAt: Long, linesProcessed: Int, processingSpeed: Int)
+case class ProcessingDetails(startedAt: Long, linesProcessed: Int, linesPerMinute: Double)

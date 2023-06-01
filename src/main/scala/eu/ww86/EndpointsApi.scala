@@ -2,7 +2,7 @@ package eu.ww86
 
 import sttp.tapir.*
 import cats.effect.IO
-import eu.ww86.domain.{TransformTaskDetails, TransformTaskId}
+import eu.ww86.domain.{TransformTaskDetails, TransformTaskId, TransformTaskStatus}
 import io.circe.Json
 import io.circe.generic.auto.*
 import sttp.tapir.generic.auto.*
@@ -25,23 +25,23 @@ object EndpointsApi:
     .in("ping")
     .out(stringBody)
 
-  val createTask: PublicEndpoint[URI, Unit, TransformTaskId, Any] = endpoint.post
+  val createTaskEndpoint: PublicEndpoint[URI, Unit, TransformTaskId, Any] = endpoint.post
     .in("task" )
     .in(jsonBody[URI])
     .out(jsonBody[TransformTaskId])
 
-  val getTaskEndpoint: PublicEndpoint[UUID, Unit, TransformTaskDetails, Any] = endpoint.get
+  val getTaskEndpoint: PublicEndpoint[UUID, Unit, Option[TransformTaskDetails], Any] = endpoint.get
     .in("task" / path[UUID]("taskId"))
-    .out(jsonBody[TransformTaskDetails])
+    .out(jsonBody[Option[TransformTaskDetails]])
 
-  val listTaskEndpoint: PublicEndpoint[Unit, Unit, Seq[TransformTaskDetails], Any] = endpoint.get
+  val listTaskEndpoint: PublicEndpoint[Unit, Unit, List[(TransformTaskId, TransformTaskStatus)], Any] = endpoint.get
     .in("task" )
-    .out(jsonBody[Seq[TransformTaskDetails]])
+    .out(jsonBody[List[(TransformTaskId, TransformTaskStatus)]])
 
-  val cancelTaskEndpoint: PublicEndpoint[UUID, Unit, String, Any] = endpoint.delete
+  val cancelTaskEndpoint: PublicEndpoint[UUID, Unit, Boolean, Any] = endpoint.delete
     .in("task" / path[UUID]("taskId"))
-    .out(stringBody)
+    .out(jsonBody[Boolean])
 
-  val getFileEndpoint: PublicEndpoint[UUID, Unit, Json, Any] = endpoint.get
+  val getFileEndpoint: PublicEndpoint[UUID, Unit, Option[String], Any] = endpoint.get
     .in("result" / path[UUID]("taskId"))
-    .out(jsonBody[Json]) // TODO streaming
+    .out(jsonBody[Option[String]]) // TODO streaming

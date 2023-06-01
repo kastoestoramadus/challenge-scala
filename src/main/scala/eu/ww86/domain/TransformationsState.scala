@@ -1,50 +1,85 @@
 package eu.ww86.domain
 
+import cats.FlatMap.ops.toAllFlatMapOps
 import cats.effect.{Clock, IO}
+import eu.ww86.concurrent.SynchronizedOnEntriesMap
+import eu.ww86.domain.TransformTaskHistory
 
 import java.net.URI
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+import scala.concurrent.duration.FiniteDuration
 
-// mutable class. Access should be limited by additional wrappers.
-// notes for first implementation. To be removed with solid memory version upgrade.
+// mutable class. Planned for solid memory. Should be used for performant access.
+// notes for first implementation.
 trait TransformationsState {
   // blockable call. One creation at the time
-  def scheduleRequest(link: URI): IO[TransformTaskId]
+  def scheduleRequest(link: URI): TransformTaskId
 
   // not restricted call
-  def listTasks(): IO[Set[(TransformTaskId, TransformTaskStatus)]]
+  def listTasks(): List[(TransformTaskId, TransformTaskStatus)]
   // not restricted call
-  def getTaskDetails(id: TransformTaskId): IO[Option[TransformTaskDetails]]
+  def getTask(id: TransformTaskId): Option[TransformTaskHistory]
 
   // one modification of the same task at the time
-  def reportTaskCancellation(id: TransformTaskId): IO[Boolean]
+  def reportTaskCancellation(id: TransformTaskId): Boolean
   // one modification of the same task at the time
-  def reportTaskProcessing(id: TransformTaskId)(linesProcessed: Int): IO[Boolean]
+  def reportTaskProcessing(id: TransformTaskId): Boolean
   // one modification of the same task at the time
-  def reportTaskDone(id: TransformTaskId): IO[Boolean]
+  def reportTaskDone(id: TransformTaskId): Boolean
   // one modification of the same task at the time
-  def reportTaskError(id: TransformTaskId, msg: String): IO[Boolean]
+  def reportTaskError(id: TransformTaskId, msg: String): Boolean
 
   // can results be fetched?
-  def isFinished(id: TransformTaskId): IO[Boolean]
+  def isDone(id: TransformTaskId): Boolean = getTask(id).exists(_.state == TransformTaskStatus.DONE)
   // Can start or continue the processing?
-  def isProcessible(id: TransformTaskId): IO[Boolean]
+  def isProcessable(id: TransformTaskId): Boolean = getTask(id).exists(el => el.state == TransformTaskStatus.SCHEDULED)
 }
 
-class InMemoryTransformationsState(timer: Clock[IO]) extends TransformationsState:
-  def scheduleRequest(link: URI): IO[TransformTaskId] = ???
+class InMemoryTransformationsState() extends TransformationsState {
 
-  def listTasks(): IO[Set[(TransformTaskId, TransformTaskStatus)]] = ???
+  import TransformTaskStatus._
 
-  def getTaskDetails(id: TransformTaskId): IO[Option[TransformTaskDetails]] = ???
+  private val states = new SynchronizedOnEntriesMap[TransformTaskId, TransformTaskHistory]()
 
-  def reportTaskCancellation(id: TransformTaskId): IO[Boolean] = ???
+  def scheduleRequest(link: URI): TransformTaskId = {
+    val newKey = TransformTaskId(UUID.randomUUID())
+    states.initiateKey(newKey, TransformTaskHistory(link,
+      SCHEDULED,
+      FiniteDuration(System.currentTimeMillis(), TimeUnit.MILLISECONDS), // FIXME: Static clock, Clock typeclass? or Calendar
+      None, None))
+    newKey
+  }
 
-  def reportTaskProcessing(id: TransformTaskId)(linesProcessed: Int): IO[Boolean] = ???
+  def listTasks(): List[(TransformTaskId, TransformTaskStatus)] = states.getStates.map(pair => pair._1 -> pair._2.state)
 
-  def reportTaskDone(id: TransformTaskId): IO[Boolean] = ???
+  def getTask(id: TransformTaskId): Option[TransformTaskHistory] = states.getState(id)
 
-  def reportTaskError(id: TransformTaskId, msg: String): IO[Boolean] = ???
+  def reportTaskCancellation(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
+    if (oldState.state == SCHEDULED || oldState.state == RUNNING)
+      oldState.copy(state = CANCELED) -> true
+    else
+      oldState -> false // TODO: logging, can not cancel a finished task
+  }
 
-  def isFinished(id: TransformTaskId): IO[Boolean] = ???
+  def reportTaskProcessing(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
+    if (oldState.state == SCHEDULED)
+      oldState.copy(state = RUNNING) -> true
+    else
+      oldState -> false // TODO: logging
+  }
 
-  def isProcessible(id: TransformTaskId): IO[Boolean] = ???
+  def reportTaskDone(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
+    if (oldState.state != RUNNING)
+      oldState -> false // TODO: logging
+    else
+      oldState.copy(state = DONE) -> true
+  }
+
+  def reportTaskError(id: TransformTaskId, msg: String): Boolean = states.atomicOperation(id) { oldState =>
+    if (oldState.state != RUNNING)
+      oldState -> false // TODO: logging
+    else
+      oldState.copy(state = FAILED) -> true
+  }
+}
