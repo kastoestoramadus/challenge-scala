@@ -1,47 +1,59 @@
 package eu.ww86.myio
 
 import cats.Applicative
+import cats.effect.IO
+import cats.effect.kernel.Async
 import eu.ww86.domain.TransformTaskId
 import eu.ww86.myio.FilesService.TransformingHooks
 import io.circe.Json
 
 import scala.collection.mutable
 import java.net.URI
+import scala.concurrent.duration.{Duration, MILLISECONDS}
 
 
-trait FilesService[F[_]] {
+trait FilesService {
   def transformFileFromURL(uri: URI, outputFileName: String)
-                          (transformingFunction: TransformingHooks => Unit): F[Boolean]
-  def getOutputFile(outputFileName: String): F[Option[String]]
+                          (transformingFunction: TransformingHooks => Either[String, Unit]): IO[Either[String, Unit]]
+
+  def getOutputFile(outputFileName: String): IO[Option[String]]
 }
 
 object FilesService {
   type Line = String
+
   class TransformingHooks(val reader: Iterator[Line], val writer: Line => Unit)
 }
 
 // not thread safe, use only for testing
-class InMemoryFiles[F[_]: Applicative] extends FilesService[F]:
+class InMemoryFiles extends FilesService:
   protected val inputFiles = mutable.Map[URI, String]()
   protected val outputFiles = mutable.Map[String, String]()
-  private val applicative = implicitly[Applicative[F]]
+  private val applicative = IO
+  private val async = IO
 
   def transformFileFromURL(uri: URI, outputFileName: String)
-                          (transformingFunction: TransformingHooks => Unit): F[Boolean] = applicative.pure{
-    inputFiles.get(uri) match
-      case Some(inputFile) =>
-        val source = inputFile.split("\n").iterator
-        val buffer = StringBuilder()
-        transformingFunction(TransformingHooks(source, line => buffer.addAll(line)))
-        val r = buffer.mkString
-        if(r.nonEmpty){
-          outputFiles.addOne(outputFileName -> buffer.mkString)
-          true
-        } else
-          false
-      case None => false
-  }
+                          (transformingFunction: TransformingHooks => Either[String, Unit]): IO[Either[String, Unit]] =
+    // sleep to make concurrency testable in memory. Loading files from disk and network is slower.
+    IO.sleep(Duration(100, MILLISECONDS)) >> applicative.pure {
+      inputFiles.get(uri) match
+        case Some(inputFile) =>
+          val source = inputFile.split("\n").iterator
+          val buffer = StringBuilder()
+          transformingFunction(TransformingHooks(source, line => {
+            //Thread.sleep(100) // still tests are single threaded :(
+            buffer.addAll(line + "\n")
+          }))
+          val r = buffer.mkString
+          if (r.nonEmpty) {
+            outputFiles.addOne(outputFileName -> buffer.mkString)
+            Right(())
+          } else
+            Left("Empty File?")
+        case None =>
+          Left("Couldn't access the file")
+    }
 
-  def getOutputFile(outputFileName: String): F[Option[String]] = applicative.pure(outputFiles.get(outputFileName))
+  def getOutputFile(outputFileName: String): IO[Option[String]] = applicative.pure(outputFiles.get(outputFileName))
 
-  def addInputFile(uri: URI, inputFile: String): F[Unit] = applicative.pure(inputFiles.addOne(uri -> inputFile))
+  def addInputFile(uri: URI, inputFile: String): IO[Unit] = applicative.pure(inputFiles.addOne(uri -> inputFile))

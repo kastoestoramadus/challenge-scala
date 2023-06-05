@@ -42,11 +42,13 @@ class InMemoryTransformationsState() extends TransformationsState {
 
   private val states = new SynchronizedOnEntriesMap[TransformTaskId, TransformTaskHistory]()
 
+  private def now() = FiniteDuration(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
+
   def scheduleRequest(link: URI): TransformTaskId = {
     val newKey = TransformTaskId(UUID.randomUUID())
     states.initiateKey(newKey, TransformTaskHistory(link,
       SCHEDULED,
-      FiniteDuration(System.currentTimeMillis(), TimeUnit.MILLISECONDS), // FIXME: Static clock, Clock typeclass? or Calendar
+      now(), // FIXME: Static clock, Clock typeclass? or Calendar
       None, None))
     newKey
   }
@@ -64,7 +66,7 @@ class InMemoryTransformationsState() extends TransformationsState {
 
   def reportTaskProcessing(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
     if (oldState.state == SCHEDULED)
-      oldState.copy(state = RUNNING) -> true
+      oldState.copy(state = RUNNING, processingStartedAt = Some(now())) -> true
     else
       oldState -> false // TODO: logging
   }
@@ -73,13 +75,13 @@ class InMemoryTransformationsState() extends TransformationsState {
     if (oldState.state != RUNNING)
       oldState -> false // TODO: logging
     else
-      oldState.copy(state = DONE) -> true
+      oldState.copy(state = DONE, endedAt = Some(now())) -> true
   }
 
   def reportTaskError(id: TransformTaskId, msg: String): Boolean = states.atomicOperation(id) { oldState =>
-    if (oldState.state != RUNNING)
-      oldState -> false // TODO: logging
+    if (oldState.state == RUNNING || oldState.state == SCHEDULED)
+      oldState.copy(state = FAILED, endedAt = Some(now())) -> true
     else
-      oldState.copy(state = FAILED) -> true
+      oldState -> false // TODO: logging
   }
 }

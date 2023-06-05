@@ -8,73 +8,83 @@ import eu.ww86.myio.InMemoryFiles
 import io.circe.Json
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
-import cats.implicits._
-import cats.effect._
-import eu.ww86.domain._
-import eu.ww86.domain.TransformTaskStatus._
+import cats.implicits.*
+import cats.effect.*
+import cats.effect.std.Supervisor
+import eu.ww86.domain.*
+import eu.ww86.domain.TransformTaskStatus.*
+import eu.ww86.service.TransformingService
+
 import java.net.URI
 import scala.concurrent.duration.*
 
 class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
+
   import TransformingServiceSpec._
+
   "TransformingService " - {
     "pass whole usage trip" in {
-      val transformingService = new TransformingService[IO](
-        filesRepo,
-        new InMemoryTransformationsState
-      )
-
-      for {
-        listedEmpty <- transformingService.listTasks()
-        firstId <- transformingService.createTask(firstUri)
-        secondId <- transformingService.createTask(secondUri)
-        thirdId <- transformingService.createTask(thirdUri)
-        fourthId <- transformingService.createTask(fourthUri)
-        listedAfterCreation <- transformingService.listTasks()
-        detailsThirdOnStart <- transformingService.getTaskDetails(thirdId) // on third
-        serveNotReady <- transformingService.serveFile(thirdId) // on third
-        cancelThird <- transformingService.cancelTask(thirdId) // on third
-        detailsCanceledThirdO <- transformingService.getTaskDetails(thirdId) // on third
-
-        wait <- IO.sleep(Duration(100, MILLISECONDS)) // TODO: improvement to time manipulation
-
-        listedLater <- transformingService.listTasks()
-        detailsOfPickedSecondO <- transformingService.getTaskDetails(secondId) // on second
-
-        serveFile <- transformingService.serveFile(secondId) // on second
-      } yield {
-        listedEmpty shouldBe List()
-        listedAfterCreation should contain theSameElementsAs List(
-          firstId -> RUNNING,
-          secondId -> RUNNING,
-          thirdId -> SCHEDULED,
-          fourthId -> FAILED
+      Supervisor[IO](await = false).use { supervisor =>
+        implicit val s = supervisor
+        val transformingService = new TransformingService(
+          filesRepo,
+          new InMemoryTransformationsState
         )
 
-        detailsThirdOnStart shouldBe Some(TransformTaskDetails(thirdUri, None, TransformTaskStatus.SCHEDULED, None))
+        for {
+          listedEmpty <- transformingService.listTasks()
+          firstId <- transformingService.createTask(firstUri)
+          secondId <- transformingService.createTask(secondUri)
+          thirdId <- transformingService.createTask(thirdUri)
+          fourthId <- transformingService.createTask(fourthUri)
+          listedAfterCreation <- transformingService.listTasks()
+          detailsThirdOnStart <- transformingService.getTaskDetails(thirdId) // on third
+          serveNotReady <- transformingService.serveFile(thirdId) // on third
+          cancelThird <- transformingService.cancelTask(thirdId) // on third
+          detailsCanceledThirdO <- transformingService.getTaskDetails(thirdId) // on third
 
-        serveNotReady shouldBe None
-        cancelThird shouldBe true
+          wait <- IO.sleep(Duration(1000, MILLISECONDS))
 
-        detailsCanceledThirdO shouldBe Some(TransformTaskDetails(thirdUri, None, TransformTaskStatus.CANCELED, None))
+          listedLater <- transformingService.listTasks()
+          detailsOfPickedSecondO <- transformingService.getTaskDetails(secondId) // on second
 
-        listedLater should contain theSameElementsAs List(
-          firstId -> DONE,
-          secondId -> DONE,
-          thirdId -> CANCELED,
-          fourthId -> FAILED
-        )
-        detailsOfPickedSecondO.isDefined shouldBe true
+          serveFile <- transformingService.serveFile(secondId) // on second
+        } yield {
+          listedEmpty shouldBe List()
+          listedAfterCreation.size shouldBe 4
 
-        detailsOfPickedSecondO match {
-          case Some(detailsOfPickedSecond) =>
-            detailsOfPickedSecond.requestedCsv shouldBe secondUri
-            detailsOfPickedSecond.state shouldBe DONE
-            detailsOfPickedSecond.processingDetails shouldBe None // FIXME
-            detailsOfPickedSecond.resultsFileName shouldBe Some("")
+          detailsThirdOnStart shouldBe Some(TransformTaskDetails(thirdUri, None, TransformTaskStatus.SCHEDULED, None))
+
+          serveNotReady shouldBe None
+          cancelThird shouldBe true
+
+          detailsCanceledThirdO shouldBe Some(TransformTaskDetails(thirdUri, None, TransformTaskStatus.CANCELED, None))
+
+          listedLater should contain theSameElementsAs List(
+            firstId -> DONE,
+            secondId -> DONE,
+            thirdId -> CANCELED,
+            fourthId -> FAILED
+          )
+          detailsOfPickedSecondO.isDefined shouldBe true
+
+          detailsOfPickedSecondO match {
+            case Some(detailsOfPickedSecond) =>
+              detailsOfPickedSecond.requestedCsv shouldBe secondUri
+              detailsOfPickedSecond.state shouldBe DONE
+              detailsOfPickedSecond.resultsFileName shouldBe Some(secondId.value.toString + ".json")
+              detailsOfPickedSecond.processingDetails.isDefined shouldBe true
+              val unpackedProcessingDetails = detailsOfPickedSecond.processingDetails.get
+              unpackedProcessingDetails.linesProcessed shouldBe 3
+              unpackedProcessingDetails.startedAt > 0 shouldBe true
+              unpackedProcessingDetails.linesPerMinute > 0 shouldBe true
+          }
+
+          serveFile shouldBe Some(
+            """{"e":"4","f":"5","g":"6"}
+              |{"e":"7","f":"8","g":"9"}
+              |""".stripMargin)
         }
-
-        serveFile shouldBe Some("")
       }
     }
   }
@@ -87,7 +97,7 @@ object TransformingServiceSpec {
   val fourthUri = new URI("https://data.wa.gov/fourth")
 
   val filesRepo = {
-    val r = new InMemoryFiles[IO]()
+    val r = new InMemoryFiles()
 
     r.addInputFile(firstUri,
       """a,b,c

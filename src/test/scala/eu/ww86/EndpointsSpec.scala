@@ -16,15 +16,11 @@ import sttp.client3.circe.*
 import sttp.tapir.integ.cats.effect.CatsMonadError
 
 class EndpointsSpec extends AnyFlatSpec with Matchers with EitherValues:
-  val serverEndpoints = new ServerEndpoints(new TransformingService[IO](
-    new InMemoryFiles[IO],
-    new InMemoryTransformationsState
-  ))
 
   it should "return hello message" in {
     // given
     val backendStub = TapirStubInterpreter(SttpBackendStub(new CatsMonadError[IO]()))
-      .whenServerEndpointRunLogic(serverEndpoints.pingServerEndpoint)
+      .whenServerEndpointRunLogic(ServerEndpoints.pingServerEndpoint)
       .backend()
 
     // when

@@ -1,7 +1,6 @@
 package eu.ww86
 
 import sttp.tapir.*
-
 import cats.effect.IO
 import io.circe.generic.auto.*
 import sttp.tapir.generic.auto.*
@@ -9,24 +8,30 @@ import sttp.tapir.json.circe.*
 import sttp.tapir.server.ServerEndpoint
 import sttp.tapir.server.metrics.prometheus.PrometheusMetrics
 import sttp.tapir.swagger.bundle.SwaggerInterpreter
-
 import domain.*
+import eu.ww86.EndpointsApi.pingEndpoint
+import eu.ww86.service.TransformingService
 
-class ServerEndpoints(service: TransformingService[IO]):
+class ServerEndpoints(service: TransformingService):
+
   import eu.ww86.EndpointsApi._
-  val pingServerEndpoint: ServerEndpoint[Any, IO] = pingEndpoint.serverLogicSuccess(user => IO.pure("pong"))
 
-  val createTaskServerEndpoint: ServerEndpoint[Any, IO]  = createTaskEndpoint.serverLogicSuccess(service.createTask)
-  val getTaskServerEndpoint: ServerEndpoint[Any, IO]  = getTaskEndpoint.serverLogicSuccess(uuid =>
+  val createTaskServerEndpoint: ServerEndpoint[Any, IO] = createTaskEndpoint.serverLogicSuccess(service.createTask)
+  val getTaskServerEndpoint: ServerEndpoint[Any, IO] = getTaskEndpoint.serverLogicSuccess(uuid =>
     service.getTaskDetails(TransformTaskId(uuid)))
-  val listTaskServerEndpoint: ServerEndpoint[Any, IO]  = listTaskEndpoint.serverLogicSuccess(_ => service.listTasks())
-  val cancelTaskServerEndpoint: ServerEndpoint[Any, IO]  = cancelTaskEndpoint.serverLogicSuccess(uuid =>
+  val listTaskServerEndpoint: ServerEndpoint[Any, IO] = listTaskEndpoint.serverLogicSuccess(_ => service.listTasks())
+  val cancelTaskServerEndpoint: ServerEndpoint[Any, IO] = cancelTaskEndpoint.serverLogicSuccess(uuid =>
     service.cancelTask(TransformTaskId(uuid)))
-  val getFileServerEndpoint: ServerEndpoint[Any, IO]  = getFileEndpoint.serverLogicSuccess(uuid =>
+  val getFileServerEndpoint: ServerEndpoint[Any, IO] = getFileEndpoint.serverLogicSuccess(uuid =>
     service.serveFile(TransformTaskId(uuid)))
 
-
-  val apiEndpoints: List[ServerEndpoint[Any, IO]] = List(pingServerEndpoint)
+  val apiEndpoints: List[ServerEndpoint[Any, IO]] = List(
+    createTaskServerEndpoint,
+    getTaskServerEndpoint,
+    listTaskServerEndpoint,
+    cancelTaskServerEndpoint,
+    getFileServerEndpoint,
+    ServerEndpoints.pingServerEndpoint)
 
   val docEndpoints: List[ServerEndpoint[Any, IO]] = SwaggerInterpreter()
     .fromServerEndpoints[IO](apiEndpoints, "wmi-csv-converter", "1.0.0")
@@ -35,3 +40,7 @@ class ServerEndpoints(service: TransformingService[IO]):
   val metricsEndpoint: ServerEndpoint[Any, IO] = prometheusMetrics.metricsEndpoint
 
   val all: List[ServerEndpoint[Any, IO]] = apiEndpoints ++ docEndpoints ++ List(metricsEndpoint)
+
+object ServerEndpoints {
+  val pingServerEndpoint: ServerEndpoint[Any, IO] = pingEndpoint.serverLogicSuccess(user => IO.pure("pong"))
+}
