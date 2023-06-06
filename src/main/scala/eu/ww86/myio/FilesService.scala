@@ -5,6 +5,7 @@ import cats.effect.IO
 import cats.effect.kernel.Async
 import eu.ww86.domain.TransformTaskId
 import eu.ww86.myio.FilesService.TransformingHooks
+import fs2.Stream
 import io.circe.Json
 
 import scala.collection.mutable
@@ -15,8 +16,8 @@ import scala.concurrent.duration.{Duration, MILLISECONDS}
 trait FilesService {
   def transformFileFromURL(uri: URI, outputFileName: String)
                           (transformingFunction: TransformingHooks => Either[String, Unit]): IO[Either[String, Unit]]
-
-  def getOutputFile(outputFileName: String): IO[Option[String]]
+  // use only for small files
+  def getOutputFile(outputFileName: String): IO[Either[Unit, Stream[IO, Byte]]]
 }
 
 object FilesService {
@@ -54,6 +55,13 @@ class InMemoryFiles extends FilesService:
           Left("Couldn't access the file")
     }
 
-  def getOutputFile(outputFileName: String): IO[Option[String]] = applicative.pure(outputFiles.get(outputFileName))
+  def getOutputFile(outputFileName: String): IO[Either[Unit, Stream[IO, Byte]]] = applicative.pure{
+    outputFiles.get(outputFileName).map(str => Stream.emits(str.getBytes)) match {
+      case Some(something) =>
+        Right(something)
+      case None =>
+        Left(())
+    }
+  }
 
   def addInputFile(uri: URI, inputFile: String): IO[Unit] = applicative.pure(inputFiles.addOne(uri -> inputFile))

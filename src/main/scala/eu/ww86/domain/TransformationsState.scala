@@ -35,7 +35,7 @@ trait TransformationsState {
   // Can start or continue the processing?
   def isProcessable(id: TransformTaskId): Boolean = getTask(id).exists(el => el.state == TransformTaskStatus.SCHEDULED)
 }
-
+// TODO: logging
 class InMemoryTransformationsState() extends TransformationsState {
 
   import TransformTaskStatus._
@@ -61,19 +61,19 @@ class InMemoryTransformationsState() extends TransformationsState {
     if (oldState.state == SCHEDULED || oldState.state == RUNNING)
       oldState.copy(state = CANCELED) -> true
     else
-      oldState -> false // TODO: logging, can not cancel a finished task
+      oldState -> false
   }
 
   def reportTaskProcessing(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
     if (oldState.state == SCHEDULED)
       oldState.copy(state = RUNNING, processingStartedAt = Some(now())) -> true
     else
-      oldState -> false // TODO: logging
+      oldState -> false 
   }
 
   def reportTaskDone(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
     if (oldState.state != RUNNING)
-      oldState -> false // TODO: logging
+      oldState -> false
     else
       oldState.copy(state = DONE, endedAt = Some(now())) -> true
   }
@@ -82,6 +82,6 @@ class InMemoryTransformationsState() extends TransformationsState {
     if (oldState.state == RUNNING || oldState.state == SCHEDULED)
       oldState.copy(state = FAILED, endedAt = Some(now())) -> true
     else
-      oldState -> false // TODO: logging
+      oldState -> false
   }
 }

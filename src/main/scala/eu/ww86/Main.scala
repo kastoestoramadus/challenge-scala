@@ -4,7 +4,7 @@ import cats.effect.std.Supervisor
 import cats.effect.{ExitCode, IO, IOApp}
 import com.comcast.ip4s.{Host, Port, port}
 import eu.ww86.domain.InMemoryTransformationsState
-import eu.ww86.myio.InMemoryFiles
+import eu.ww86.myio.{InMemoryFiles, SolidMemoryFiles}
 import eu.ww86.service.TransformingService
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
@@ -17,7 +17,7 @@ object Main extends IOApp:
     Supervisor[IO](await = false).use { supervisor =>
       implicit val s = supervisor
       val serverEndpoints = new ServerEndpoints(new TransformingService(
-        new InMemoryFiles,
+        new SolidMemoryFiles,
         new InMemoryTransformationsState
       ))
 

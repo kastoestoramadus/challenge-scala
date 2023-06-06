@@ -11,6 +11,7 @@ import sttp.tapir.swagger.bundle.SwaggerInterpreter
 import domain.*
 import eu.ww86.EndpointsApi.pingEndpoint
 import eu.ww86.service.TransformingService
+import sttp.capabilities.fs2.Fs2Streams
 
 class ServerEndpoints(service: TransformingService):
 
@@ -22,10 +23,10 @@ class ServerEndpoints(service: TransformingService):
   val listTaskServerEndpoint: ServerEndpoint[Any, IO] = listTaskEndpoint.serverLogicSuccess(_ => service.listTasks())
   val cancelTaskServerEndpoint: ServerEndpoint[Any, IO] = cancelTaskEndpoint.serverLogicSuccess(uuid =>
     service.cancelTask(TransformTaskId(uuid)))
-  val getFileServerEndpoint: ServerEndpoint[Any, IO] = getFileEndpoint.serverLogicSuccess(uuid =>
+  val getFileServerEndpoint: ServerEndpoint[Any with Fs2Streams[IO], IO] = getFileEndpoint.serverLogic(uuid =>
     service.serveFile(TransformTaskId(uuid)))
 
-  val apiEndpoints: List[ServerEndpoint[Any, IO]] = List(
+  val apiEndpoints: List[ServerEndpoint[Any with Fs2Streams[IO], IO]] = List(
     createTaskServerEndpoint,
     getTaskServerEndpoint,
     listTaskServerEndpoint,
@@ -39,8 +40,9 @@ class ServerEndpoints(service: TransformingService):
   val prometheusMetrics: PrometheusMetrics[IO] = PrometheusMetrics.default[IO]()
   val metricsEndpoint: ServerEndpoint[Any, IO] = prometheusMetrics.metricsEndpoint
 
-  val all: List[ServerEndpoint[Any, IO]] = apiEndpoints ++ docEndpoints ++ List(metricsEndpoint)
+  val all: List[ServerEndpoint[Any with Fs2Streams[IO], IO]] = apiEndpoints ++ docEndpoints ++ List(metricsEndpoint)
 
 object ServerEndpoints {
   val pingServerEndpoint: ServerEndpoint[Any, IO] = pingEndpoint.serverLogicSuccess(user => IO.pure("pong"))
+
 }

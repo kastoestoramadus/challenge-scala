@@ -31,7 +31,6 @@ private[service] class BackgroundRoutines(files: FilesService, quickStates: Tran
       }
     }
 
-
   def consumeUntilEmpty(): IO[Boolean] = {
     def processIfNotEmpty() = state.listTasks().find(_._2 == TransformTaskStatus.SCHEDULED).flatMap(p =>
       state.getTask(p._1).map(history => p._1 -> history.requestedCsv)) match {
@@ -48,7 +47,7 @@ private[service] class BackgroundRoutines(files: FilesService, quickStates: Tran
   def handleOneTask(uri: URI, id: TransformTaskId): IO[Boolean] =
     files.transformFileFromURL(uri, makeFileName(id)) {
       transformRoutine(uri, id)
-    }.map { // WTF?! this map is not executed!
+    }.map {
         case Right(()) =>
           state.reportTaskDone(id)
           true
@@ -56,8 +55,7 @@ private[service] class BackgroundRoutines(files: FilesService, quickStates: Tran
           state.reportTaskError(id, str)
           false
     }
-
-  // line by line processing; TODO too long
+  
   protected def transformRoutine(uri: URI, id: TransformTaskId): TransformingHooks => Either[String, Unit] = {
     pair =>
       val inputLinesIterator = pair.reader

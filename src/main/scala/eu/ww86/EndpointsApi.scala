@@ -5,6 +5,7 @@ import cats.effect.IO
 import eu.ww86.domain.{TransformTaskDetails, TransformTaskId, TransformTaskStatus}
 import io.circe.Json
 import io.circe.generic.auto.*
+import sttp.capabilities.fs2.Fs2Streams
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.*
 import sttp.tapir.server.metrics.prometheus.PrometheusMetrics
@@ -13,7 +14,7 @@ import sttp.tapir.swagger.bundle.SwaggerInterpreter
 import java.io.File
 import java.net.URI
 import java.util.UUID
-
+import fs2.Stream
 
 object EndpointsApi:
 
@@ -42,6 +43,6 @@ object EndpointsApi:
     .in("task" / path[UUID]("taskId"))
     .out(jsonBody[Boolean])
 
-  val getFileEndpoint: PublicEndpoint[UUID, Unit, Option[String], Any] = endpoint.get
+  val getFileEndpoint: PublicEndpoint[UUID, Unit, Stream[IO, Byte], Any with Fs2Streams[IO]] = endpoint.get
     .in("result" / path[UUID]("taskId"))
-    .out(jsonBody[Option[String]]) // TODO streaming
+    .out(streamBody(Fs2Streams[IO])(Schema.string, CodecFormat.TextPlain()))

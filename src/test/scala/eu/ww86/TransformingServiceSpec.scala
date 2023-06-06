@@ -55,7 +55,7 @@ class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matche
 
           detailsThirdOnStart shouldBe Some(TransformTaskDetails(thirdUri, None, TransformTaskStatus.SCHEDULED, None))
 
-          serveNotReady shouldBe None
+          serveNotReady shouldBe Left(())
           cancelThird shouldBe true
 
           detailsCanceledThirdO shouldBe Some(TransformTaskDetails(thirdUri, None, TransformTaskStatus.CANCELED, None))
@@ -80,10 +80,17 @@ class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matche
               unpackedProcessingDetails.linesPerMinute > 0 shouldBe true
           }
 
-          serveFile shouldBe Some(
-            """{"e":"4","f":"5","g":"6"}
-              |{"e":"7","f":"8","g":"9"}
-              |""".stripMargin)
+          serveFile match {
+            case Right(stream) =>
+              for( str <- stream.collect { case byte => byte.toChar }.compile.fold("")(_ + _) )
+              yield { str shouldBe """{"e":"4","f":"5","g":"6"}
+                  |{"e":"7","f":"8","g":"9"}
+                  |""".stripMargin }
+            case Left(_) =>
+              "Returned no stream" shouldBe "Returns stream"
+          }
+
+          ()
         }
       }
     }

@@ -14,6 +14,8 @@ import java.net.URI
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration.{Duration, MILLISECONDS}
+import fs2.io.file.{Files, Path}
+import fs2.Stream
 
 class TransformingService(val files: FilesService, val state: TransformationsState)
                          (implicit supervisor: Supervisor[IO]) {
@@ -23,8 +25,7 @@ class TransformingService(val files: FilesService, val state: TransformationsSta
 
   private val quickStates = new TransformingService.PerformantMetrics
   private val backgroundRoutines = new BackgroundRoutines(files, quickStates, state)
-
-  // TODO limiting to two + make them work until there are Scheduled events!
+  
   def createTask(uri: URI): IO[TransformTaskId] = {
     val r = state.scheduleRequest(uri)
     for {
@@ -65,11 +66,11 @@ class TransformingService(val files: FilesService, val state: TransformationsSta
     }
   }
 
-  def serveFile(id: TransformTaskId): IO[Option[String]] = {
+  def serveFile(id: TransformTaskId): IO[Either[Unit, Stream[IO, Byte]]] = {
     if (state.isDone(id))
       files.getOutputFile(makeFileName(id))
     else
-      applicative.pure(None)
+      applicative.pure(Left(()))
   }
 }
 
@@ -92,6 +93,6 @@ object TransformingService {
 
     def reportTaskCancellation(id: TransformTaskId): Unit = canceled += id
   }
-
+  
 }
 
