@@ -5,7 +5,7 @@ import cats.effect.{ExitCode, IO, IOApp}
 import com.comcast.ip4s.{Host, Port, port}
 import eu.ww86.domain.InMemoryTransformationsState
 import eu.ww86.myio.{InMemoryFiles, SolidMemoryFiles}
-import eu.ww86.service.TransformingService
+import eu.ww86.transforming_service.TransformingService
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import sttp.tapir.server.http4s.{Http4sServerInterpreter, Http4sServerOptions}
@@ -15,7 +15,7 @@ object Main extends IOApp:
   override def run(args: List[String]): IO[ExitCode] =
 
     Supervisor[IO](await = false).use { supervisor =>
-      implicit val s = supervisor
+      implicit val s: Supervisor[IO] = supervisor
       val serverEndpoints = new ServerEndpoints(new TransformingService(
         new SolidMemoryFiles,
         new InMemoryTransformationsState

@@ -8,8 +8,8 @@ import eu.ww86.myio.FilesService.TransformingHooks
 import fs2.Stream
 import io.circe.Json
 
-import scala.collection.mutable
 import java.net.URI
+import scala.collection.mutable
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 
 
@@ -28,8 +28,8 @@ object FilesService {
 
 // not thread safe, use only for testing
 class InMemoryFiles extends FilesService:
-  protected val inputFiles = mutable.Map[URI, String]()
-  protected val outputFiles = mutable.Map[String, String]()
+  private val inputFiles = mutable.Map[URI, String]()
+  private val outputFiles = mutable.Map[String, String]()
   private val applicative = IO
   private val async = IO
 

@@ -36,7 +36,7 @@ class FileServiceItTest extends AsyncFreeSpec with AsyncIOSpec with Matchers {
         r
       }
     }
-    " fail on fake a network file" in {
+    " fails on fake network file" in {
       val fakePath = new URI("""https://media.githubusercontent.com/media/organizations-100.csv""")
       val service = new SolidMemoryFiles
 

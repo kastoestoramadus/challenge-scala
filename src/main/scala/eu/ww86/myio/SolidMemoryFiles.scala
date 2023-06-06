@@ -6,17 +6,16 @@ import eu.ww86.myio.FilesService.TransformingHooks
 import fs2.Stream
 import fs2.io.file.{Files, Path}
 
-import java.io.{BufferedReader, File, IOException, InputStream, InputStreamReader, PrintWriter}
-import java.net.URI
-import java.net.URLConnection
+import java.io.*
+import java.net.{URI, URLConnection}
 import scala.collection.mutable
 import scala.io.Source
-import scala.util.Try
 import scala.jdk.StreamConverters.*
+import scala.util.Try
 
+// deleting files on shutdown would be nice
 class SolidMemoryFiles extends FilesService:
 
-  protected val outputFiles = mutable.Map[String, String]()
   private val applicative = IO
   private val async = IO
 
@@ -26,7 +25,7 @@ class SolidMemoryFiles extends FilesService:
       // current solution fits working mechanism of limiting jobs; consequence of testing first without knowledge of all final libs
       var inputStream: InputStream = null
       var outputFile: PrintWriter = null
-      def finalize() = {
+      def finalize(): Unit = {
         if (inputStream != null) inputStream.close()
         if (outputFile != null) outputFile.close()
       }

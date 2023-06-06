@@ -1,31 +1,29 @@
 package eu.ww86
 
+import cats.effect.std.Supervisor
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.unsafe.implicits.global
-import cats.effect.{Clock, IO}
-import eu.ww86.domain.{InMemoryTransformationsState, TransformTaskDetails, TransformTaskStatus}
+import cats.effect.*
+import cats.implicits.*
+import eu.ww86.domain.TransformTaskStatus.*
+import eu.ww86.domain.*
 import eu.ww86.myio.InMemoryFiles
+import eu.ww86.transforming_service.TransformingService
 import io.circe.Json
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
-import cats.implicits.*
-import cats.effect.*
-import cats.effect.std.Supervisor
-import eu.ww86.domain.*
-import eu.ww86.domain.TransformTaskStatus.*
-import eu.ww86.service.TransformingService
 
 import java.net.URI
 import scala.concurrent.duration.*
 
 class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
 
-  import TransformingServiceSpec._
+  import TransformingServiceSpec.*
 
   "TransformingService " - {
     "pass whole usage trip" in {
       Supervisor[IO](await = false).use { supervisor =>
-        implicit val s = supervisor
+        implicit val s: Supervisor[IO] = supervisor
         val transformingService = new TransformingService(
           filesRepo,
           new InMemoryTransformationsState
@@ -51,7 +49,12 @@ class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matche
           serveFile <- transformingService.serveFile(secondId) // on second
         } yield {
           listedEmpty shouldBe List()
-          listedAfterCreation.size shouldBe 4
+          listedAfterCreation should contain theSameElementsAs List( //InMemoryFiles has IO.sleep; so check is valid
+            firstId -> SCHEDULED,
+            secondId -> SCHEDULED,
+            thirdId -> SCHEDULED,
+            fourthId -> SCHEDULED
+          )
 
           detailsThirdOnStart shouldBe Some(TransformTaskDetails(thirdUri, None, TransformTaskStatus.SCHEDULED, None))
 
@@ -66,7 +69,6 @@ class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matche
             thirdId -> CANCELED,
             fourthId -> FAILED
           )
-          detailsOfPickedSecondO.isDefined shouldBe true
 
           detailsOfPickedSecondO match {
             case Some(detailsOfPickedSecond) =>
@@ -78,6 +80,8 @@ class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matche
               unpackedProcessingDetails.linesProcessed shouldBe 3
               unpackedProcessingDetails.startedAt > 0 shouldBe true
               unpackedProcessingDetails.linesPerMinute > 0 shouldBe true
+            case _ =>
+              "no details returned" shouldBe "nonempty details"
           }
 
           serveFile match {
@@ -103,7 +107,7 @@ object TransformingServiceSpec {
   val thirdUri = new URI("https://data.wa.gov/third")
   val fourthUri = new URI("https://data.wa.gov/fourth")
 
-  val filesRepo = {
+  val filesRepo: InMemoryFiles = {
     val r = new InMemoryFiles()
 
     r.addInputFile(firstUri,

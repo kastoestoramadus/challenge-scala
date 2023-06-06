@@ -1,21 +1,21 @@
 package eu.ww86
 
-import sttp.tapir.*
 import cats.effect.IO
+import eu.ww86.EndpointsApi.pingEndpoint
+import eu.ww86.domain.*
+import eu.ww86.transforming_service.TransformingService
 import io.circe.generic.auto.*
+import sttp.capabilities.fs2.Fs2Streams
+import sttp.tapir.*
 import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.*
 import sttp.tapir.server.ServerEndpoint
 import sttp.tapir.server.metrics.prometheus.PrometheusMetrics
 import sttp.tapir.swagger.bundle.SwaggerInterpreter
-import domain.*
-import eu.ww86.EndpointsApi.pingEndpoint
-import eu.ww86.service.TransformingService
-import sttp.capabilities.fs2.Fs2Streams
 
 class ServerEndpoints(service: TransformingService):
 
-  import eu.ww86.EndpointsApi._
+  import eu.ww86.EndpointsApi.*
 
   val createTaskServerEndpoint: ServerEndpoint[Any, IO] = createTaskEndpoint.serverLogicSuccess(service.createTask)
   val getTaskServerEndpoint: ServerEndpoint[Any, IO] = getTaskEndpoint.serverLogicSuccess(uuid =>

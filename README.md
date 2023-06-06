@@ -1,41 +1,18 @@
-# Scala challenge
+Streaming implemented for both: downloading csv from web and for serving jsons result by this service.
 
-Hello future colleague! In this assessment, we request that you implement an HTTP application that converts CSV data sets to JSON data sets. The application will provide the following endpoints:
- 
-## Create Task 
-#### POST /task/
-Create a task with URI pointing to CSV dataset which will be converted to Json and reuturns taskId.
-   - 2 tasks can be run at the same time
-   - the task is executed immediately if `running-tasks < 2` 
+# Running tests
+Internet connection required for one test suit.
 
-## List Tasks 
-#### GET /task/
+`sbt test`
 
-## Task Detail 
-#### GET /task/[taskId]
-Return informations about the task:    
-- lines processed
-- avg lines processed (count/sec)
-- state (`SCHEDULED/RUNNING/DONE/FAILED/CANCELED`)
-- result (uri where the JSON file can be downloaded)
+# Running
+`sbt run`
 
-Keep the connection open until the task isn't in a terminal state and send the updated response every 2 seconds.
+# Testing running instance:
+For smaller files the OpenApi subpage will be fine:
 
-## Cancel Task
-#### DELETE /task/[taskId]
-Tasks in `SCHEDULED` or `RUNNING` state can be canceled.
+`http://localhost:8080/docs`
 
-## Get JSON File
-Endpoint providing generated JSON files.
+For bigger files better to use the command line:
 
-## Notes
-- Keep the state only in memory except generated json files.
-- Take into account that input files don't have to fit into memory.
-
-CSV datasets for testing purposes can be found at the following links:
-* https://catalog.data.gov/dataset?res_format=CSV
-* https://www.kaggle.com/datasets
-
-Feel free to ask any questions through email or github.
-
-Good Luck!
+``curl -X 'GET'   'http://localhost:8080/result/3299b01a-1745-424a-9606-3a659740a07c'   -H 'accept: text/plain'``

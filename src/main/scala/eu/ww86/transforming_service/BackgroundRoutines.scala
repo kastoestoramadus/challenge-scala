@@ -1,4 +1,4 @@
-package eu.ww86.service
+package eu.ww86.transforming_service
 
 import cats.Applicative
 import cats.effect.kernel.{Async, Concurrent}
@@ -7,20 +7,23 @@ import cats.effect.{Clock, IO}
 import eu.ww86.domain.*
 import eu.ww86.myio.FilesService
 import eu.ww86.myio.FilesService.TransformingHooks
-
 import io.circe.Json
+import org.slf4j.LoggerFactory
 
 import java.net.URI
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 
-private[service] class BackgroundRoutines(files: FilesService, quickStates: TransformingService.PerformantMetrics, state: TransformationsState) {
-  import TransformingService._
+// could be an inner class, moved out for cleaner style
+private[transforming_service] class BackgroundRoutines(files: FilesService, quickStates: TransformingService.PerformantMetrics, state: TransformationsState) {
+  import TransformingService.*
+  private val logger = LoggerFactory.getLogger(classOf[BackgroundRoutines])
+
   val ioThreadsLimit = 2
 
-  val createParallelLock = new Object
-  var ioThreadsCount = 0 // defective solution? is releasing guarantied?
+  private val createParallelLock = new Object
+  private var ioThreadsCount = 0 // defective solution? is releasing guarantied?
 
   def consumeUntilEmptyWithLimit(): IO[Boolean] =
     createParallelLock.synchronized{
@@ -50,9 +53,11 @@ private[service] class BackgroundRoutines(files: FilesService, quickStates: Tran
     }.map {
         case Right(()) =>
           state.reportTaskDone(id)
+          logger.info(s"Job completed successfully for uri/id $uri/$id")
           true
         case Left(str) =>
           state.reportTaskError(id, str)
+          logger.warn(s"Job has failed with message: $str for uri/id $uri/$id")
           false
     }
   
@@ -86,7 +91,7 @@ private[service] class BackgroundRoutines(files: FilesService, quickStates: Tran
               } else {
                 // After processing of all
                 reportProgress(linesProcessed)
-                // TODO log skipped lines
+                logger.warn(s"Skipped $linesSkipped lines for uri/id $uri/$id")
               }
             }
             Right(consumeNextValuesLine(1, 0))

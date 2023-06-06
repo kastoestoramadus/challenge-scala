@@ -1,9 +1,9 @@
 package eu.ww86.domain
 
-import cats.FlatMap.ops.toAllFlatMapOps
 import cats.effect.{Clock, IO}
 import eu.ww86.concurrent.SynchronizedOnEntriesMap
 import eu.ww86.domain.TransformTaskHistory
+import org.slf4j.LoggerFactory
 
 import java.net.URI
 import java.util.UUID
@@ -37,9 +37,8 @@ trait TransformationsState {
 }
 // TODO: logging
 class InMemoryTransformationsState() extends TransformationsState {
-
-  import TransformTaskStatus._
-
+  import TransformTaskStatus.*
+  private val logger = LoggerFactory.getLogger(classOf[InMemoryTransformationsState])
   private val states = new SynchronizedOnEntriesMap[TransformTaskId, TransformTaskHistory]()
 
   private def now() = FiniteDuration(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
@@ -60,28 +59,35 @@ class InMemoryTransformationsState() extends TransformationsState {
   def reportTaskCancellation(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
     if (oldState.state == SCHEDULED || oldState.state == RUNNING)
       oldState.copy(state = CANCELED) -> true
-    else
+    else {
+      logger.debug(s"reportTaskCancellation failed for: $id")
       oldState -> false
+    }
   }
 
   def reportTaskProcessing(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
     if (oldState.state == SCHEDULED)
       oldState.copy(state = RUNNING, processingStartedAt = Some(now())) -> true
-    else
-      oldState -> false 
+    else {
+      logger.debug(s"reportTaskProcessing failed for: $id")
+      oldState -> false
+    }
   }
 
   def reportTaskDone(id: TransformTaskId): Boolean = states.atomicOperation(id) { oldState =>
-    if (oldState.state != RUNNING)
+    if (oldState.state != RUNNING) {
+      logger.debug(s"reportTaskDone failed for: $id")
       oldState -> false
-    else
+    } else
       oldState.copy(state = DONE, endedAt = Some(now())) -> true
   }
 
   def reportTaskError(id: TransformTaskId, msg: String): Boolean = states.atomicOperation(id) { oldState =>
-    if (oldState.state == RUNNING || oldState.state == SCHEDULED)
+    if (oldState.state == RUNNING || oldState.state == SCHEDULED) {
       oldState.copy(state = FAILED, endedAt = Some(now())) -> true
-    else
+    } else {
+      logger.debug(s"reportTaskError failed for: $id")
       oldState -> false
+    }
   }
 }

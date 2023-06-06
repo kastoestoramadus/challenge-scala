@@ -1,4 +1,4 @@
-package eu.ww86.service
+package eu.ww86.transforming_service
 
 import cats.Applicative
 import cats.effect.kernel.{Async, Concurrent}
@@ -7,18 +7,21 @@ import cats.effect.{Clock, IO}
 import eu.ww86.domain.*
 import eu.ww86.myio.FilesService
 import eu.ww86.myio.FilesService.TransformingHooks
-import eu.ww86.service.TransformingService.makeFileName
+import eu.ww86.transforming_service.TransformingService.makeFileName
+import fs2.Stream
+import fs2.io.file.{Files, Path}
 import io.circe.Json
+import org.slf4j.LoggerFactory
 
 import java.net.URI
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration.{Duration, MILLISECONDS}
-import fs2.io.file.{Files, Path}
-import fs2.Stream
 
 class TransformingService(val files: FilesService, val state: TransformationsState)
                          (implicit supervisor: Supervisor[IO]) {
+  private val logger = LoggerFactory.getLogger(classOf[TransformingService])
+
   private val applicative = IO
 
   import TransformingService.makeFileName
@@ -31,10 +34,16 @@ class TransformingService(val files: FilesService, val state: TransformationsSta
     for {
       fib <- supervisor.supervise( backgroundRoutines.consumeUntilEmptyWithLimit())
       r <- applicative.pure(r)
-    } yield r
+    } yield {
+      logger.info(s"Conversion job scheduled with new id: $r")
+      r
+    }
   }
 
-  def listTasks(): IO[List[(TransformTaskId, TransformTaskStatus)]] = applicative.pure(state.listTasks())
+  def listTasks(): IO[List[(TransformTaskId, TransformTaskStatus)]] = {
+    logger.debug(s"Listing all jobs.")
+    applicative.pure(state.listTasks())
+  }
 
   def getTaskDetails(id: TransformTaskId): IO[Option[TransformTaskDetails]] =
     applicative.pure {
@@ -67,20 +76,23 @@ class TransformingService(val files: FilesService, val state: TransformationsSta
   }
 
   def serveFile(id: TransformTaskId): IO[Either[Unit, Stream[IO, Byte]]] = {
-    if (state.isDone(id))
+    if (state.isDone(id)) {
+      logger.warn(s"Served a file for id:$id")
       files.getOutputFile(makeFileName(id))
-    else
+    } else {
+      logger.warn(s"Tried to get a fake or not ready file for id:$id")
       applicative.pure(Left(()))
+    }
   }
 }
 
 object TransformingService {
-  val suffix = ".json"
-  val reportEachNLine = 300
+  private val suffix = ".json"
+  private[transforming_service] val reportEachNLine = 300
 
-  private[service] def makeFileName(id: TransformTaskId) = id.value.toString + suffix
+  private[transforming_service] def makeFileName(id: TransformTaskId) = id.value.toString + suffix
 
-  protected[service] class PerformantMetrics {
+  protected[transforming_service] class PerformantMetrics {
     // FIXME, memory leak, add ~few minutes retention ; could report final processing speed to long lived states
     private val progresses = mutable.Map[TransformTaskId, Int]()
     private val canceled = mutable.Set[TransformTaskId]()

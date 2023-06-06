@@ -2,7 +2,6 @@ package eu.ww86.domain
 
 import io.circe.*
 import io.circe.generic.auto.*
-import io.circe.Json
 import io.circe.syntax.*
 
 import scala.collection.mutable
@@ -25,7 +24,7 @@ class CsvToJsonUtil(headers: Vector[String]) {
 
 // TODO cover special characters
 object CsvToJsonUtil {
-  val splitPattern = """(?:^\s*"\s*|\s*"\s*$|\s*"?\s*,\s*"?\s*)"""
+  private val splitPattern = """(?:^\s*"\s*|\s*"\s*$|\s*"?\s*,\s*"?\s*)"""
   def createFromFirstLineHeaders(csvHeadersLine: String): Option[CsvToJsonUtil] =
     Some(CsvToJsonUtil(csvHeadersLine.split(splitPattern).toVector))
 }
