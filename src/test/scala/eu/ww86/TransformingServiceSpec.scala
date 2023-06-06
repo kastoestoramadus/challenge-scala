@@ -83,8 +83,8 @@ class TransformingServiceSpec extends AsyncFreeSpec with AsyncIOSpec with Matche
           serveFile match {
             case Right(stream) =>
               for( str <- stream.collect { case byte => byte.toChar }.compile.fold("")(_ + _) )
-              yield { str shouldBe """{"e":"4","f":"5","g":"6"}
-                  |{"e":"7","f":"8","g":"9"}
+              yield { str shouldBe """{"e":"4,E","f f":"5","g":"6"}
+                  |{"e":"7","f f":"8","g":":.9/"}
                   |""".stripMargin }
             case Left(_) =>
               "Returned no stream" shouldBe "Returns stream"
@@ -111,9 +111,9 @@ object TransformingServiceSpec {
         |1,2,3
         |""".stripMargin)
     r.addInputFile(secondUri,
-      """e,f,g
-        |4,5,6
-        |7,8,9
+      """e,f f,g
+        |"4,E",5,6
+        |7,8,:.9/
         |""".stripMargin)
     r.addInputFile(thirdUri,
       """h,i,j

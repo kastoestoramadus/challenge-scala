@@ -10,7 +10,7 @@ import scala.collection.mutable
 // TODO cover special characters, find external lib?
 class CsvToJsonUtil(headers: Vector[String]) {
   def process(csvLine: String): Option[Json] = {
-    val cells = csvLine.split(",")
+    val cells = csvLine.split(CsvToJsonUtil.splitPattern)
     if(cells.length != headers.length) None
     else {
       val fields = mutable.Map[String, String]()
@@ -25,6 +25,7 @@ class CsvToJsonUtil(headers: Vector[String]) {
 
 // TODO cover special characters
 object CsvToJsonUtil {
+  val splitPattern = """(?:^\s*"\s*|\s*"\s*$|\s*"?\s*,\s*"?\s*)"""
   def createFromFirstLineHeaders(csvHeadersLine: String): Option[CsvToJsonUtil] =
-    Some(CsvToJsonUtil(csvHeadersLine.split(",").toVector))
+    Some(CsvToJsonUtil(csvHeadersLine.split(splitPattern).toVector))
 }

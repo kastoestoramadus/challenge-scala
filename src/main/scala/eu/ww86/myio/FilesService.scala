@@ -36,13 +36,12 @@ class InMemoryFiles extends FilesService:
   def transformFileFromURL(uri: URI, outputFileName: String)
                           (transformingFunction: TransformingHooks => Either[String, Unit]): IO[Either[String, Unit]] =
     // sleep to make concurrency testable in memory. Loading files from disk and network is slower.
-    IO.sleep(Duration(100, MILLISECONDS)) >> applicative.pure {
+    IO.sleep(Duration(100, MILLISECONDS)) >> IO.blocking {
       inputFiles.get(uri) match
         case Some(inputFile) =>
           val source = inputFile.split("\n").iterator
           val buffer = StringBuilder()
           transformingFunction(TransformingHooks(source, line => {
-            //Thread.sleep(100) // still tests are single threaded :(
             buffer.addAll(line + "\n")
           }))
           val r = buffer.mkString
